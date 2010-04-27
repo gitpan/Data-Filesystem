@@ -1,0 +1,301 @@
+NAME
+    Data::Filesystem - Access and modify data structures like a filesystem
+
+VERSION
+    version 0.01
+
+SYNOPSIS
+        use Data::Filesystem;
+        my $data  = {a => {b => {c=>  1}, b2 => {c=> 2}}, a2 => [0,  10, {b=> 20}]};
+        my $data2 = {a => {b => {c=> -1}, b2 => {c=>-2}}, a2 => [0, -10, {b=>-20}]};
+        my $dfs = Data::Filesystem->new(data => $data);
+
+        my $res;
+
+        # getting data
+        say $dfs->get("/a/b/c");     # 1
+        say $dfs->get("/a2/2/1");    # 10
+        $res = $dfs->get("/a/b2");   # {c => 2}
+        say $dfs->get("/a3");        # dies with "No such file or directory" error
+
+        # changing location
+        $dfs->cd("/a");
+        say $dfs->get("b/c");        # 1
+        say $dfs->get("../b2/c");    # 2
+        say $dfs->cd("b")->get("c"); # 1
+        $dfs->cd("../b2/c");         # dies with "Not a directory" error
+        $dfs->cd("/a3");             # dies with "No such file or directory" error
+
+        # listing data
+        $res = $dfs->ls("/a");       # ["b", "b2"]
+        $res = $dfs->readdir("/a");  # ditto
+
+        # setting data
+        $dfs->set("/a/b/c", 3);
+        $dfs->set("/a/b", {c =>3});
+        $dfs->set_file("/a/b/c", 3);
+        $dfs->set_file("/a/b", {c =>3}); # dies, set_file() can only set leaf nodes
+        $dfs->set_file("/a/b/c", {});
+
+        $dfs->create_file("/a/b/d", 1);
+        $dfs->create_file("/a/b/d", 2);  # dies, create_file can only create previously nonexisting file
+        $dfs->replace_file("/a/b/d", 2);
+        $dfs->replace_file("/a/b/e", 2); # dies, replace_file can only replace previously existing file
+        $dfs->create_or_replace_file("/a/b/e", 2);
+
+        $dfs->mkdir("/a/b/c2");
+        $dfs->mkdir("/a/b/c2/d");    # dies, can't create intermediate directory
+        $dfs->mktree("/a/b/c2/d");   # like mkdir -p
+
+        # deleting data
+        $dfs->unlink("/a/b/c");
+        $dfs->unlink("/a/b");        # dies, can't unlink directory
+        $dfs->rmdir("/a/b");
+        $dfs->rmdir("/a");           # dies, can't remove nonempty dir
+        $dfs->rmtree("/a");          # like rm -r
+
+        # volumes
+        $dfs->addvol(vol2 => {a => {b2 => {c => 5}}});
+        $dfs->cvol("vol2");
+        say $dfs->get("/a/b4/c");    # 5
+        $dfs->get(":/a/b2/c");       # 2 (from volume '', our first one)
+        $dfs->get("vol2:/a/b2/c");   # 5
+
+DESCRIPTION
+    This module provides a Unix-filesystem-like interface to access and
+    modify components of nested data structure.
+
+    Highlights of this module:
+
+    *   Uses Moose
+
+    *   Volumes
+
+    *   Read/write access
+
+    *   Mounts (to be implemented)
+
+PROPERTIES
+  options
+    Filesystem or mount options. See Data::Filesystem::Options.
+
+  active_volume => STR
+    Records the active volume.
+
+  cwds => {VOLUME_NAME => PARRAY, ...}
+    Records the cwd of each volume.
+
+  refs => {VOLUME_NAME => [REF_ROOT, REF_SUB1, ...], ...}
+    Records the list of active nodes of each volume. Used to traverse data
+    from root path to cwd. Data for each volume is stored (referred to) in
+    the first element (REF_ROOT).
+
+  mounts => [[PATH => $dfs], ...]
+    XXX For future version.
+
+METHODS
+  new([%args)
+    Create new object. Valid %arg keys:
+
+    *   data => $data
+
+        Optional. Supply the data.
+
+    *   vol => $vol
+
+        Optional. Set the name of the volume. Default is '' (empty string).
+
+        If you want to add volume, see addvol().
+
+  addvol($name, $data)
+    Add a volume.
+
+    Return $self so you can chain method calls.
+
+  rmvol($name)
+    Remove volume. Cannot remove active volume.
+
+    Return $self so you can chain method calls.
+
+  cwd([VOL])
+    Return the current working directory for a volume (or, by default, the
+    active volume).
+
+  cd(PATH)
+    Change working directory to PATH. If PATH contains volume, change
+    working directory for that volume, otherwise change working directory
+    for active volume.
+
+    Return $self, so you can chain method calls, e.g.:
+
+     $dfs->cd("/a")->rm("b");
+
+  cvol(STR)
+    Change active volume.
+
+    Return $self, so you can chain methods like this:
+
+     $dfs->cvol("vol2")->cd("/a/b/c");
+
+  get(PATH)
+    Get data at PATH.
+
+  get_or_undef(PATH)
+    Like get, but instead of dying, return undef when nonexistant path is
+    encountered.
+
+  set(PATH, VALUE)
+    Set value at PATH.
+
+  set_file(PATH, VALUE)
+    Like set, but PATH cannot be an existing directory and VALUE cannot be a
+    hashref/arrayref (dir).
+
+  create_file(PATH, VALUE)
+    Like set_file, but PATH cannot be an existing file/dir.
+
+  replace_file(PATH, VALUE)
+    Like set_file, but PATH must be an existing existing file.
+
+  ls([PATH])
+    Return all entries at PATH. If PATH is not specified, defaults to cwd.
+    See also: readdir.
+
+  readdir(PATH)
+    Return all entries at PATH. Basically the same as ls() except ls accepts
+    non-dir and optional PATH.
+
+  mkdir(PATH)
+    Create a directory. See also: mktree.
+
+    Return $self so you can chain method calls.
+
+  mktree(PATH)
+    Create a directory (and intermediate directories when needed). See also:
+    mkdir. Similar to "mkdir -p" in Unix.
+
+    Return $self so you can chain method calls.
+
+  unlink(PATH)
+    Remove a file.
+
+    Return $self so you can chain method calls.
+
+  rmdir(PATH)
+    Remove an empty directory.
+
+    Return $self so you can chain method calls.
+
+  rmtree(PATH)
+    Remove a file/directory tree.
+
+    Return $self so you can chain method calls.
+
+  is_file(PATH) -> BOOL
+    Return true if path is a file (i.e.: a leaf node), or false if
+    otherwise. See also: is_dir.
+
+  is_dir(PATH) -> BOOL
+    Return true if path is a dir (i.e. a nonleaf node), or false if
+    otherwise. See also: is_file.
+
+  is_abs_path(PATH) -> BOOL
+    Return true if path is absolute, or false if otherwise.
+
+  path_to_parray(PATH) -> ARRAY
+    Convert path string to array of path elements along with some
+    normalization. This is a core routine used internally when manipulating
+    path.
+
+  parray_to_path(PARRAY) -> PATH
+    Do the opposite of path_to_parray().
+
+FAQ
+  What is this module good for? Why would you want to access data like a filesystem?
+    Because at times it's convenient, especially the access-by-path part.
+
+    This module was actually born out of overengineering of a need to access
+    a data structure by path.
+
+  Where is grep(), wc(), head(), tail(), et al?
+    Data::Filesystem does not provide methods for manipulating the content
+    of files. If you want to treat a scalar like a file, try IO::Scalar.
+
+  Why doesn't get("a*") or unlink("a*", "b*") work? I thought wildcards are supported?
+    NOTE: glob() is not yet implemented.
+
+    Like in Perl, only the glob() method interpret wildcards. If you want
+    shell-like behaviour, you are welcome to subclass this module. So far I
+    haven't had the need for something like that.
+
+  I want a case-insensitive filesystem!
+    Tie your hash with something like Hash::Case, and override empty_hash()
+    in your subclass to return similarly tied hash.
+
+  Is there support for Lufs/Fuse?
+    No at the moment. You are welcome to contribute :-)
+
+TODO
+    *   mounts
+
+        Allow chaining of DFS object to another DFS object via mounting it
+        on a certain path, just like in Unix.
+
+    *   glob(), find(), lstree(), ln()
+
+SEE ALSO
+    Modules that also provide path access to data structure:
+
+    *   Data::DPath
+
+        More closely resembles XPath.
+
+    *   Data::FetchPath
+
+        Uses path notation like Perl:
+
+         {bar}[2]
+         {baz}{trois}
+
+    *   Data::Leaf::Walker
+
+    *   Data::Path
+
+        Uses "/ary[1]/key" syntax instead of "/ary/1/key".
+
+        Supports retrieving data from a code reference, with "/method()"
+        syntax.
+
+        Allows you to supply action when a wanted key does not exist, or
+        when an index is tried on a hash, or a key tried on an array.
+
+        Plans to support XPath "/foo[*]/bar" syntax.
+
+    *   Data::Walker
+
+        Provides an interactive CLI ("shell") interface.
+
+        Currently does not support mentioning PATH in commands (e.g. cat
+        "/a/b/c" or cat "../c", which I need)
+
+    Modules that also provide filesystem semantic to data:
+
+    *   DBIx::Filesystem (for database tables)
+
+    *   Fuse::*
+
+    Modules which use Data::Filesystem:
+
+    *   Data::Schema
+
+    *   Config::Tree
+
+AUTHOR
+      Steven Haryanto <stevenharyanto@gmail.com>
+
+COPYRIGHT AND LICENSE
+    This software is copyright (c) 2010 by Steven Haryanto.
+
+    This is free software; you can redistribute it and/or modify it under
+    the same terms as the Perl 5 programming language system itself.
+
