@@ -13,6 +13,7 @@ t/is_abs_path.t
 t/is_file-is_dir.t
 t/ls-readdir.t
 t/mkdir-mktree.t
+t/options-parse_volume.t
 t/options-ro.t
 t/parray_to_path.t
 t/path_to_parray.t

@@ -2,7 +2,7 @@ NAME
     Data::Filesystem - Access and modify data structures like a filesystem
 
 VERSION
-    version 0.01
+    version 0.02
 
 SYNOPSIS
         use Data::Filesystem;
@@ -128,7 +128,7 @@ METHODS
 
     Return $self, so you can chain method calls, e.g.:
 
-     $dfs->cd("/a")->rm("b");
+     $dfs->cd("/a")->unlink("b");
 
   cvol(STR)
     Change active volume.
@@ -217,6 +217,10 @@ FAQ
     This module was actually born out of overengineering of a need to access
     a data structure by path.
 
+  I thought there are already several CPAN modules to do so?
+    Yes, and I also give a comparison of them (see "SEE ALSO"). But none of
+    them is suitable for my need, specifically the volumes feature.
+
   Where is grep(), wc(), head(), tail(), et al?
     Data::Filesystem does not provide methods for manipulating the content
     of files. If you want to treat a scalar like a file, try IO::Scalar.
@@ -229,8 +233,8 @@ FAQ
     haven't had the need for something like that.
 
   I want a case-insensitive filesystem!
-    Tie your hash with something like Hash::Case, and override empty_hash()
-    in your subclass to return similarly tied hash.
+    Tie your hash with something like Hash::Case, and set the new_hash_sub
+    option to a sub that generate similarly tied hash.
 
   Is there support for Lufs/Fuse?
     No at the moment. You are welcome to contribute :-)
@@ -278,17 +282,11 @@ SEE ALSO
         Currently does not support mentioning PATH in commands (e.g. cat
         "/a/b/c" or cat "../c", which I need)
 
-    Modules that also provide filesystem semantic to data:
+    Modules that also provide filesystem interface to data:
 
     *   DBIx::Filesystem (for database tables)
 
     *   Fuse::*
-
-    Modules which use Data::Filesystem:
-
-    *   Data::Schema
-
-    *   Config::Tree
 
 AUTHOR
       Steven Haryanto <stevenharyanto@gmail.com>

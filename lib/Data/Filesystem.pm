@@ -1,6 +1,6 @@
 package Data::Filesystem;
 BEGIN {
-  $Data::Filesystem::VERSION = '0.01';
+  $Data::Filesystem::VERSION = '0.02';
 }
 # ABSTRACT: Access and modify data structures like a filesystem
 
@@ -140,7 +140,8 @@ sub _traverse {
                 if ($p =~ /^-?\d+$/) {
                     if (abs($p) >= @$data && $create) {
                         $self->_check_ro($path);
-                        $data->[$p] = $is_leaf ? $opts->{new_leaf_node} : {};
+                        $data->[$p] = $is_leaf ? $opts->{new_leaf_node} :
+                            $so->{new_hash_sub}->();
                         $num_created++;
                     }
                     if (abs($p) < @$data) {
@@ -154,7 +155,8 @@ sub _traverse {
             } elsif ($self->_is_hashref($data)) {
                 if (!(exists $data->{$p}) && $create) {
                     $self->_check_ro($path);
-                    $data->{$p} = $is_leaf ? $opts->{new_leaf_node} : {};
+                    $data->{$p} = $is_leaf ? $opts->{new_leaf_node} :
+                        $so->{new_hash_sub}->();
                     $num_created++;
                 }
                 if (exists $data->{$p}) {
@@ -164,7 +166,8 @@ sub _traverse {
                 }
             } else {
                 if ($create) {
-                    $data = $is_leaf ? $opts->{new_leaf_node} : {};
+                    $data = $is_leaf ? $opts->{new_leaf_node} :
+                        $so->{new_hash_sub}->();
                     my $par = $ref->[-1];
                     if ($self->_is_hashref($par)) {
                         $self->_check_ro($path);
@@ -372,7 +375,7 @@ sub mkdir {
     my ($self, $path) = @_;
     $self->_traverse($path, {
         create_leaf => 1,
-        new_leaf_node => {},
+        new_leaf_node => $self->options->{new_hash_sub}->(),
         require_dir_leaf => 1,
     });
     $self;
@@ -383,7 +386,7 @@ sub mktree {
     my ($self, $path) = @_;
     $self->_traverse($path, {
         create_intermediate => 1,
-        new_leaf_node => {},
+        new_leaf_node => $self->options->{new_hash_sub}->(),
         require_dir_leaf => 1,
     });
     $self;
@@ -405,6 +408,7 @@ sub _unlink {
                 }
             }
 
+            $self->_check_ro($path);
             my $vol = $args{vol};
             my $cwd = $args{cwd};
             if (@$cwd) {
@@ -584,10 +588,9 @@ Data::Filesystem - Access and modify data structures like a filesystem
 
 =head1 VERSION
 
-version 0.01
+version 0.02
 
 =head1 SYNOPSIS
-
 
     use Data::Filesystem;
     my $data  = {a => {b => {c=>  1}, b2 => {c=> 2}}, a2 => [0,  10, {b=> 20}]};
@@ -647,423 +650,291 @@ version 0.01
 
 =head1 DESCRIPTION
 
-
 This module provides a Unix-filesystem-like interface to access and
 modify components of nested data structure.
 
-
 Highlights of this module:
-
 
 =over 4
 
-
 =item * Uses Moose
-
 
 =item * Volumes
 
-
 =item * Read/write access
 
-
 =item * Mounts (to be implemented)
-
 
 =back
 
 =head1 PROPERTIES
 
-
 =head2 options
-
 
 Filesystem or mount options. See L<Data::Filesystem::Options>.
 
-
 =head2 active_volume => STR
-
 
 Records the active volume.
 
-
 =head2 cwds => {VOLUME_NAME => PARRAY, ...}
-
 
 Records the cwd of each volume.
 
-
 =head2 refs => {VOLUME_NAME => [REF_ROOT, REF_SUB1, ...], ...}
-
 
 Records the list of active nodes of each volume. Used to traverse data
 from root path to cwd. Data for each volume is stored (referred to) in
 the first element (REF_ROOT).
 
-
 =head2 mounts => [[PATH => $dfs], ...]
-
 
 XXX For future version.
 
 =head1 METHODS
 
-
 =head2 new([%args)
-
 
 Create new object. Valid %arg keys:
 
-
 =over 4
-
 
 =item * data => $data
 
-
 Optional. Supply the data.
-
 
 =item * vol => $vol
 
-
 Optional. Set the name of the volume. Default is '' (empty string).
-
 
 If you want to add volume, see addvol().
 
-
 =back
-
 
 =head2 addvol($name, $data)
 
-
 Add a volume.
 
-
 Return $self so you can chain method calls.
-
 
 =head2 rmvol($name)
 
-
 Remove volume. Cannot remove active volume.
-
 
 Return $self so you can chain method calls.
 
-
 =head2 cwd([VOL])
-
 
 Return the current working directory for a volume (or, by default, the
 active volume).
 
-
 =head2 cd(PATH)
-
 
 Change working directory to PATH. If PATH contains volume, change
 working directory for that volume, otherwise change working directory
 for active volume.
 
-
 Return $self, so you can chain method calls, e.g.:
 
-
- $dfs->cd("/a")->rm("b");
-
+ $dfs->cd("/a")->unlink("b");
 
 =head2 cvol(STR)
 
-
 Change active volume.
-
 
 Return $self, so you can chain methods like this:
 
-
  $dfs->cvol("vol2")->cd("/a/b/c");
-
 
 =head2 get(PATH)
 
-
 Get data at PATH.
 
-
 =head2 get_or_undef(PATH)
-
 
 Like B<get>, but instead of dying, return undef when nonexistant path
 is encountered.
 
-
 =head2 set(PATH, VALUE)
-
 
 Set value at PATH.
 
-
 =head2 set_file(PATH, VALUE)
-
 
 Like B<set>, but PATH cannot be an existing directory and VALUE cannot
 be a hashref/arrayref (dir).
 
-
 =head2 create_file(PATH, VALUE)
-
 
 Like B<set_file>, but PATH cannot be an existing file/dir.
 
-
 =head2 replace_file(PATH, VALUE)
-
 
 Like B<set_file>, but PATH must be an existing existing file.
 
-
 =head2 ls([PATH])
-
 
 Return all entries at PATH. If PATH is not specified, defaults to
 cwd. See also: B<readdir>.
 
-
 =head2 readdir(PATH)
-
 
 Return all entries at PATH. Basically the same as ls() except ls
 accepts non-dir and optional PATH.
 
-
 =head2 mkdir(PATH)
-
 
 Create a directory. See also: B<mktree>.
 
-
 Return $self so you can chain method calls.
 
-
 =head2 mktree(PATH)
-
 
 Create a directory (and intermediate directories when needed). See
 also: B<mkdir>. Similar to "mkdir -p" in Unix.
 
-
 Return $self so you can chain method calls.
-
 
 =head2 unlink(PATH)
 
-
 Remove a file.
 
-
 Return $self so you can chain method calls.
-
 
 =head2 rmdir(PATH)
 
-
 Remove an empty directory.
 
-
 Return $self so you can chain method calls.
-
 
 =head2 rmtree(PATH)
 
-
 Remove a file/directory tree.
-
 
 Return $self so you can chain method calls.
 
-
 =head2 is_file(PATH) -> BOOL
-
 
 Return true if path is a file (i.e.: a leaf node), or false if
 otherwise. See also: B<is_dir>.
 
-
 =head2 is_dir(PATH) -> BOOL
-
 
 Return true if path is a dir (i.e. a nonleaf node), or false if
 otherwise. See also: B<is_file>.
 
-
 =head2 is_abs_path(PATH) -> BOOL
-
 
 Return true if path is absolute, or false if otherwise.
 
-
 =head2 path_to_parray(PATH) -> ARRAY
-
 
 Convert path string to array of path elements along with some
 normalization. This is a core routine used internally when
 manipulating path.
 
-
 =head2 parray_to_path(PARRAY) -> PATH
-
 
 Do the opposite of path_to_parray().
 
 =head1 FAQ
 
-
 =head2 What is this module good for? Why would you want to access data like a filesystem?
 
-
 Because at times it's convenient, especially the access-by-path part.
-
 
 This module was actually born out of overengineering of a need to
 access a data structure by path.
 
+=head2 I thought there are already several CPAN modules to do so?
+
+Yes, and I also give a comparison of them (see L<"SEE ALSO">). But
+none of them is suitable for my need, specifically the volumes
+feature.
 
 =head2 Where is grep(), wc(), head(), tail(), et al?
-
 
 Data::Filesystem does not provide methods for manipulating the content
 of files. If you want to treat a scalar like a file, try
 L<IO::Scalar>.
 
-
 =head2 Why doesn't get("a*") or unlink("a*", "b*") work? I thought wildcards are supported?
 
-
 NOTE: glob() is not yet implemented.
-
 
 Like in Perl, only the glob() method interpret wildcards. If you want
 shell-like behaviour, you are welcome to subclass this module. So far
 I haven't had the need for something like that.
 
-
 =head2 I want a case-insensitive filesystem!
 
-
-Tie your hash with something like L<Hash::Case>, and override
-empty_hash() in your subclass to return similarly tied hash.
-
+Tie your hash with something like L<Hash::Case>, and set the
+B<new_hash_sub> option to a sub that generate similarly tied hash.
 
 =head2 Is there support for Lufs/Fuse?
-
 
 No at the moment. You are welcome to contribute :-)
 
 =head1 TODO
 
-
 =over 4
 
-
 =item * mounts
-
 
 Allow chaining of DFS object to another DFS object via mounting it on
 a certain path, just like in Unix.
 
-
 =item * glob(), find(), lstree(), ln()
-
 
 =back
 
 =head1 SEE ALSO
 
-
 Modules that also provide path access to data structure:
-
 
 =over 4
 
-
 =item * L<Data::DPath>
-
 
 More closely resembles XPath.
 
-
 =item * L<Data::FetchPath>
 
-
 Uses path notation like Perl:
-
 
  {bar}[2]
  {baz}{trois}
 
-
 =item * L<Data::Leaf::Walker>
-
 
 =item * L<Data::Path>
 
-
 Uses "/ary[1]/key" syntax instead of "/ary/1/key".
-
 
 Supports retrieving data from a code reference, with "/method()"
 syntax.
 
-
 Allows you to supply action when a wanted key does not exist, or when
 an index is tried on a hash, or a key tried on an array.
 
-
 Plans to support XPath "/foo[*]/bar" syntax.
-
 
 =item * L<Data::Walker>
 
-
 Provides an interactive CLI ("shell") interface.
-
 
 Currently does not support mentioning PATH in commands (e.g. cat
 "/a/b/c" or cat "../c", which I need)
 
-
 =back
 
-
-Modules that also provide filesystem semantic to data:
-
+Modules that also provide filesystem interface to data:
 
 =over 4
-
 
 =item * DBIx::Filesystem (for database tables)
 
-
 =item * Fuse::*
-
-
-=back
-
-
-Modules which use Data::Filesystem:
-
-
-=over 4
-
-
-=item * L<Data::Schema>
-
-
-=item * L<Config::Tree>
-
 
 =back
 

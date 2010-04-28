@@ -1,6 +1,17 @@
 Revision history for Data-Filesystem
 
-0.01   2010-04-xx
+0.02   2010-04-28
+
+       - Bug fix: unlink(), rmdir(), rmtree() didn't check ro option.
+
+       - Add option: new_hash
+
+       - Add more tests.
+
+       - Documentation fixes.
+
+
+0.01   2010-04-27
 
        - First release.
 
